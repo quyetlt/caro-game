@@ -25,8 +25,37 @@ Future<void> main() async {
   runApp(const CaroGameApp());
 }
 
-class CaroGameApp extends StatelessWidget {
+class CaroGameApp extends StatefulWidget {
   const CaroGameApp({super.key});
+
+  @override
+  State<CaroGameApp> createState() => _CaroGameAppState();
+}
+
+class _CaroGameAppState extends State<CaroGameApp> with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Cập nhật hiện diện khi app vào/ra nền (chỉ khi đã đăng nhập online).
+    if (AuthService.instance.current == null) return;
+    if (state == AppLifecycleState.resumed) {
+      AuthService.instance.setOnline(true);
+    } else if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      AuthService.instance.setOnline(false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {

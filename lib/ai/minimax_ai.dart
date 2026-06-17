@@ -132,7 +132,8 @@ class _Engine {
     }
 
     // Đào sâu lặp với quỹ thời gian: luôn giữ kết quả của độ sâu hoàn tất gần nhất.
-    int bestIdx = candidates.first;
+    // Khởi tạo bằng nước tốt nhất theo heuristic để có dự phòng tốt nếu bị cắt sớm.
+    int bestIdx = _ordered(board, candidates, _ai).first;
     for (int depth = 2; depth <= _maxDepth; depth += 2) {
       final ordered = _ordered(board, candidates, _ai);
       int bestScore = -_five * 2;
