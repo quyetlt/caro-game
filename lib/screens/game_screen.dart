@@ -6,23 +6,43 @@ import '../widgets/board_widget.dart';
 
 class GameScreen extends StatefulWidget {
   final GameMode mode;
-  const GameScreen({super.key, required this.mode});
+  final AIDifficulty difficulty;
+  const GameScreen({
+    super.key,
+    required this.mode,
+    this.difficulty = AIDifficulty.hard,
+  });
 
   @override
   State<GameScreen> createState() => _GameScreenState();
 }
 
+String difficultyLabel(AIDifficulty d) => switch (d) {
+      AIDifficulty.easy => 'Dễ',
+      AIDifficulty.medium => 'Trung bình',
+      AIDifficulty.hard => 'Khó',
+    };
+
 class _GameScreenState extends State<GameScreen> {
   late GameState _gameState;
   late MinimaxAI _ai;
+  late AIDifficulty _difficulty;
   bool _aiThinking = false;
 
   @override
   void initState() {
     super.initState();
+    _difficulty = widget.difficulty;
     _gameState = GameState(mode: widget.mode);
-    _ai = MinimaxAI(aiPlayer: Player.O);
+    _ai = MinimaxAI(aiPlayer: Player.O, difficulty: _difficulty);
     _gameState.addListener(_onStateChanged);
+  }
+
+  void _changeDifficulty(AIDifficulty d) {
+    setState(() {
+      _difficulty = d;
+      _ai = MinimaxAI(aiPlayer: Player.O, difficulty: d);
+    });
   }
 
   @override
@@ -47,9 +67,9 @@ class _GameScreenState extends State<GameScreen> {
 
   Future<void> _doAIMove() async {
     setState(() => _aiThinking = true);
-    await Future.delayed(const Duration(milliseconds: 300));
+    // Tìm nước đi trong isolate riêng → không làm đơ giao diện.
+    final move = await _ai.getBestMove(_gameState.board);
     if (!mounted) return;
-    final move = _ai.getBestMove(_gameState.board);
     _gameState.makeMove(move[0], move[1]);
     if (mounted) setState(() => _aiThinking = false);
   }
@@ -143,6 +163,33 @@ class _GameScreenState extends State<GameScreen> {
           style: const TextStyle(fontWeight: FontWeight.bold),
         ),
         actions: [
+          if (widget.mode == GameMode.vsAI)
+            PopupMenuButton<AIDifficulty>(
+              icon: const Icon(Icons.tune),
+              tooltip: 'Độ khó',
+              initialValue: _difficulty,
+              enabled: !_aiThinking,
+              onSelected: _changeDifficulty,
+              itemBuilder: (_) => [
+                for (final d in AIDifficulty.values)
+                  PopupMenuItem(
+                    value: d,
+                    child: Row(
+                      children: [
+                        Icon(
+                          d == _difficulty
+                              ? Icons.radio_button_checked
+                              : Icons.radio_button_unchecked,
+                          size: 18,
+                          color: const Color(0xFF1A237E),
+                        ),
+                        const SizedBox(width: 8),
+                        Text('Độ khó: ${difficultyLabel(d)}'),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
           IconButton(
             icon: const Icon(Icons.undo),
             onPressed: _aiThinking ? null : () => _gameState.undoMove(),

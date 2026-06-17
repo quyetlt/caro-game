@@ -1,0 +1,52 @@
+rules_version = '2';
+
+// Luật bảo mật Firestore cho Cờ Caro online.
+// Triết lý: người dùng ẩn danh đã đăng nhập mới được truy cập. Mỗi người
+// chỉ sửa được hồ sơ của mình; chỉ người chơi trong ván mới sửa được ván đó.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    // Hồ sơ người dùng
+    match /users/{uid} {
+      allow read: if signedIn();
+      allow create, update: if signedIn() && request.auth.uid == uid;
+
+      // Bạn bè: chủ tài khoản đọc; người khác chỉ được ghi doc bạn-bè trỏ về
+      // chính họ (để kết bạn 2 chiều).
+      match /friends/{friendUid} {
+        allow read: if signedIn() && request.auth.uid == uid;
+        allow write: if signedIn() &&
+          (request.auth.uid == uid || request.auth.uid == friendUid);
+      }
+
+      // Lời mời: chủ tài khoản đọc/xoá; người khác chỉ được tạo lời mời gửi tới.
+      match /invites/{inviteId} {
+        allow read, delete: if signedIn() && request.auth.uid == uid;
+        allow create: if signedIn() &&
+          request.resource.data.fromUid == request.auth.uid;
+      }
+    }
+
+    // Ván đấu
+    match /matches/{matchId} {
+      allow read: if signedIn();
+
+      // Người tạo ván phải là chính mình.
+      allow create: if signedIn() &&
+        request.resource.data.hostUid == request.auth.uid;
+
+      // Chỉ host hoặc guest mới được cập nhật (đánh cờ, tham gia, chơi lại...).
+      // Cho phép một người chưa-là-guest tham gia ván đang chờ.
+      allow update: if signedIn() && (
+        request.auth.uid == resource.data.hostUid ||
+        request.auth.uid == resource.data.guestUid ||
+        (resource.data.guestUid == null &&
+         request.resource.data.guestUid == request.auth.uid)
+      );
+    }
+  }
+}

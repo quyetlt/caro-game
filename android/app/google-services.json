@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1087904092637",
+    "project_id": "co-caro-b645d",
+    "storage_bucket": "co-caro-b645d.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1087904092637:android:456aa9fe9e03c81a696634",
+        "android_client_info": {
+          "package_name": "com.quyetlt.caro_game"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAZurCSGokTwbDD_6lcW0wjceqdFs7spkc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
