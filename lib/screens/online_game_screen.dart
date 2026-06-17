@@ -70,7 +70,7 @@ class _OnlineGameScreenState extends State<OnlineGameScreen> {
     if (m == null || m.status != MatchStatus.playing) return;
     final mySymbol = m.symbolFor(_uid);
     if (mySymbol == null || m.turn != mySymbol) return; // chưa tới lượt
-    MatchService.instance.makeMove(widget.matchId, row, col);
+    MatchService.instance.makeMove(m, row, col);
   }
 
   @override
