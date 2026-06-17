@@ -1,9 +1,55 @@
 import 'package:flutter/material.dart';
 import 'game_screen.dart';
+import 'online_lobby_screen.dart';
 import '../models/game_state.dart';
+import '../ai/minimax_ai.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
+
+  Future<void> _startVsAI(BuildContext context) async {
+    final difficulty = await showModalBottomSheet<AIDifficulty>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.all(20),
+              child: Text('Chọn độ khó',
+                  style:
+                      TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            ),
+            for (final d in AIDifficulty.values)
+              ListTile(
+                leading: Icon(
+                  switch (d) {
+                    AIDifficulty.easy => Icons.sentiment_satisfied,
+                    AIDifficulty.medium => Icons.sentiment_neutral,
+                    AIDifficulty.hard => Icons.local_fire_department,
+                  },
+                  color: const Color(0xFF1A237E),
+                ),
+                title: Text(difficultyLabel(d)),
+                onTap: () => Navigator.pop(context, d),
+              ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+    if (difficulty == null || !context.mounted) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) =>
+            GameScreen(mode: GameMode.vsAI, difficulty: difficulty),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -64,18 +110,25 @@ class HomeScreen extends StatelessWidget {
                       label: 'Chơi với AI',
                       icon: Icons.smart_toy_outlined,
                       color: const Color(0xFF42A5F5),
+                      onTap: () => _startVsAI(context),
+                    ),
+                    const SizedBox(height: 16),
+                    _MenuButton(
+                      label: 'Chơi online',
+                      icon: Icons.public,
+                      color: const Color(0xFF66BB6A),
                       onTap: () => Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => const GameScreen(mode: GameMode.vsAI),
+                          builder: (_) => const OnlineLobbyScreen(),
                         ),
                       ),
                     ),
                     const SizedBox(height: 16),
                     _MenuButton(
-                      label: 'Hai người chơi',
+                      label: 'Hai người (1 máy)',
                       icon: Icons.people_outline,
-                      color: const Color(0xFF66BB6A),
+                      color: const Color(0xFFFFA726),
                       onTap: () => Navigator.push(
                         context,
                         MaterialPageRoute(
