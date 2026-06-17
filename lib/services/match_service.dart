@@ -111,32 +111,32 @@ class MatchService {
       .where((s) => s.exists)
       .map(OnlineMatch.fromDoc);
 
-  /// Đánh một nước. Tự kiểm tra lượt đi, ô trống, thắng/hòa trong transaction.
-  Future<void> makeMove(String matchId, int row, int col) async {
-    final ref = _matches.doc(matchId);
-    await _db.runTransaction((tx) async {
-      final snap = await tx.get(ref);
-      if (!snap.exists) return;
-      final m = OnlineMatch.fromDoc(snap);
-      if (m.status != MatchStatus.playing) return;
+  /// Đánh một nước.
+  ///
+  /// Tính toán nước đi/thắng-thua phía client từ trạng thái [m] đã biết rồi ghi
+  /// thẳng bằng `update()` (KHÔNG dùng transaction). Nhờ vậy Firestore áp dụng
+  /// ngay vào cache local và bắn snapshot tức thì (latency compensation) → người
+  /// đánh thấy nước đi của mình ngay lập tức, server đồng bộ sau. Lượt đi luân
+  /// phiên nên không xảy ra tranh chấp ghi đồng thời.
+  Future<void> makeMove(OnlineMatch m, int row, int col) async {
+    final mySymbol = m.symbolFor(_me.uid);
+    if (mySymbol == null) return;
+    if (m.status != MatchStatus.playing) return;
+    if (m.turn != mySymbol) return; // không phải lượt
+    if (m.moves.any((mv) => mv.row == row && mv.col == col)) return; // đã có quân
 
-      final mySymbol = m.symbolFor(_me.uid);
-      if (mySymbol == null || m.turn != mySymbol) return; // không phải lượt
-      if (m.moves.any((mv) => mv.row == row && mv.col == col)) return; // đã có quân
+    final moves = [...m.moves, OnlineMove(row, col, mySymbol)];
+    final win = _checkWin(moves, row, col, mySymbol);
+    final draw =
+        !win && moves.length >= GameState.boardSize * GameState.boardSize;
 
-      final moves = [...m.moves, OnlineMove(row, col, mySymbol)];
-      final win = _checkWin(moves, row, col, mySymbol);
-      final draw = !win && moves.length >= GameState.boardSize * GameState.boardSize;
-
-      tx.update(ref, {
-        'moves': moves.map((mv) => mv.toMap()).toList(),
-        'turn': mySymbol == 'X' ? 'O' : 'X',
-        'winner': win ? mySymbol : (draw ? 'draw' : null),
-        'status': (win || draw)
-            ? MatchStatus.finished.name
-            : MatchStatus.playing.name,
-        'turnStartedAt': FieldValue.serverTimestamp(),
-      });
+    await _matches.doc(m.id).update({
+      'moves': moves.map((mv) => mv.toMap()).toList(),
+      'turn': mySymbol == 'X' ? 'O' : 'X',
+      'winner': win ? mySymbol : (draw ? 'draw' : null),
+      'status':
+          (win || draw) ? MatchStatus.finished.name : MatchStatus.playing.name,
+      'turnStartedAt': FieldValue.serverTimestamp(),
     });
   }
 
