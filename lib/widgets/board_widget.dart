@@ -22,28 +22,38 @@ class _BoardWidgetState extends State<BoardWidget> {
 
   @override
   Widget build(BuildContext context) {
-    return InteractiveViewer(
-      transformationController: _transformController,
-      minScale: 0.5,
-      maxScale: 3.0,
-      child: AspectRatio(
-        aspectRatio: 1,
-        child: CustomPaint(
-          painter: _BoardPainter(widget.gameState),
-          child: GestureDetector(
-            onTapDown: (details) {
-              final size = context.size!;
-              final cellSize = size.width / GameState.boardSize;
-              final col = (details.localPosition.dx / cellSize).floor();
-              final row = (details.localPosition.dy / cellSize).floor();
-              if (row >= 0 && row < GameState.boardSize &&
-                  col >= 0 && col < GameState.boardSize) {
-                widget.onTap(row, col);
-              }
-            },
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Cạnh vuông = cạnh ngắn nhất của vùng trống → bàn cờ luôn vuông,
+        // không bị kéo dài kẻ dọc xuống phần thừa bên dưới.
+        final side = constraints.biggest.shortestSide;
+        final cellSize = side / GameState.boardSize;
+        return InteractiveViewer(
+          transformationController: _transformController,
+          minScale: 0.5,
+          maxScale: 3.0,
+          child: Center(
+            child: SizedBox(
+              width: side,
+              height: side,
+              child: GestureDetector(
+                onTapDown: (details) {
+                  final col = (details.localPosition.dx / cellSize).floor();
+                  final row = (details.localPosition.dy / cellSize).floor();
+                  if (row >= 0 && row < GameState.boardSize &&
+                      col >= 0 && col < GameState.boardSize) {
+                    widget.onTap(row, col);
+                  }
+                },
+                child: CustomPaint(
+                  painter: _BoardPainter(widget.gameState),
+                  size: Size.square(side),
+                ),
+              ),
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }
