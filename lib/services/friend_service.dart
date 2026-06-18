@@ -22,13 +22,18 @@ class FriendService {
     final c = code.trim().toUpperCase();
     if (c.isEmpty || c == _me.friendCode) return null;
 
-    final q = await _users
-        .where('friendCode', isEqualTo: c)
-        .limit(1)
-        .get();
-    if (q.docs.isEmpty) return null;
+    // Tra cứu qua bảng /friendCodes (rules không cho query toàn bộ /users).
+    final codeDoc = await _db.collection('friendCodes').doc(c).get();
+    final codeData = codeDoc.data();
+    if (codeData == null) return null;
+    final friendUid = codeData['uid'] as String?;
+    if (friendUid == null || friendUid == _me.uid) return null;
 
-    final friend = UserProfile.fromDoc(q.docs.first);
+    final friend = UserProfile(
+      uid: friendUid,
+      displayName: (codeData['displayName'] ?? 'Người chơi') as String,
+      friendCode: c,
+    );
     final batch = _db.batch();
     batch.set(_friendsOf(_me.uid).doc(friend.uid), {
       'name': friend.displayName,
