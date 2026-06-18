@@ -1,0 +1,129 @@
+rules_version = '2';
+
+// Luật bảo mật Firestore cho Cờ Caro online.
+// Triết lý: người dùng ẩn danh đã đăng nhập mới được truy cập. Mỗi người
+// chỉ sửa được hồ sơ của mình; chỉ người chơi trong ván mới sửa được ván đó,
+// và nước đi phải hợp lệ (đúng lượt, thêm đúng một quân).
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    // Hồ sơ người dùng
+    //
+    // BẢN CHUYỂN TIẾP: tạm giữ quyền đọc /users mở (như rules cũ) để các bản
+    // app đã cài (v1.1.0 — query users theo friendCode) không bị hỏng kết bạn.
+    // Sau khi phát hành app dùng /friendCodes, deploy firestore.rules (strict)
+    // để khóa đọc về self+friends và tắt list.
+    match /users/{uid} {
+      allow read: if signedIn();
+      allow create, update: if signedIn() && request.auth.uid == uid;
+
+      // Bạn bè: chủ tài khoản đọc; người khác chỉ được ghi doc bạn-bè trỏ về
+      // chính họ (để kết bạn 2 chiều).
+      match /friends/{friendUid} {
+        allow read: if signedIn() && request.auth.uid == uid;
+        allow write: if signedIn() &&
+          (request.auth.uid == uid || request.auth.uid == friendUid);
+      }
+
+      // Lời mời: chủ tài khoản đọc/xoá; người khác chỉ được tạo lời mời gửi tới.
+      match /invites/{inviteId} {
+        allow read, delete: if signedIn() && request.auth.uid == uid;
+        allow create: if signedIn() &&
+          request.resource.data.fromUid == request.auth.uid;
+      }
+    }
+
+    // Bảng tra cứu mã kết bạn: friendCodes/{CODE} -> { uid, displayName }.
+    // Cho phép tra cứu bằng mã chính xác (phải biết mã 6 ký tự), nhưng không
+    // cho liệt kê toàn bộ. Mỗi người chỉ ghi/sửa được mã trỏ về chính mình.
+    match /friendCodes/{code} {
+      allow get: if signedIn();
+      allow list: if false;
+      allow create: if signedIn() &&
+        request.resource.data.uid == request.auth.uid;
+      allow update: if signedIn() &&
+        resource.data.uid == request.auth.uid &&
+        request.resource.data.uid == request.auth.uid;
+    }
+
+    // Ván đấu
+    match /matches/{matchId} {
+
+      function isParticipant() {
+        return request.auth.uid == resource.data.hostUid ||
+               request.auth.uid == resource.data.guestUid;
+      }
+
+      // Ký hiệu quân của người đang gọi trong ván này ('X' = host, 'O' = guest).
+      function mySymbol() {
+        return request.auth.uid == resource.data.hostUid ? 'X' : 'O';
+      }
+
+      function unchanged(field) {
+        return request.resource.data[field] == resource.data[field];
+      }
+
+      // Các trường định danh ván không được đổi sau khi tạo.
+      function coreUnchanged() {
+        return unchanged('hostUid') && unchanged('mode') &&
+               unchanged('roomCode') && unchanged('createdAt');
+      }
+
+      // Một nước đi hợp lệ: đang chơi, đúng lượt của mình, thêm đúng một quân
+      // mang ký hiệu của mình, lượt chuyển sang đối thủ, người thắng (nếu có)
+      // phải là mình hoặc hoà.
+      function isValidMove() {
+        return resource.data.status == 'playing' &&
+          resource.data.turn == mySymbol() &&
+          request.resource.data.turn != resource.data.turn &&
+          request.resource.data.moves.size() == resource.data.moves.size() + 1 &&
+          request.resource.data.moves[resource.data.moves.size()].p == mySymbol() &&
+          (request.resource.data.winner == null ||
+           request.resource.data.winner == mySymbol() ||
+           request.resource.data.winner == 'draw') &&
+          unchanged('guestUid');
+      }
+
+      // Cập nhật không phải đánh quân: đầu hàng/rời ván, hết giờ, chơi lại
+      // (reset bàn). Bàn cờ phải giữ nguyên, hoặc bị xóa sạch (rematch) — không
+      // được tráo/ghi đè quân đã đánh.
+      function isNonMoveUpdate() {
+        return isParticipant() &&
+          unchanged('guestUid') &&
+          (request.resource.data.moves == resource.data.moves ||
+           request.resource.data.moves.size() == 0);
+      }
+
+      // Một người chưa-là-guest điền vào chỗ trống của ván đang chờ. Chỉ được
+      // chuyển ván sang 'playing' với bàn cờ trống, không kèm sửa kết quả.
+      function isJoin() {
+        return resource.data.status == 'waiting' &&
+          resource.data.guestUid == null &&
+          request.resource.data.guestUid == request.auth.uid &&
+          request.resource.data.status == 'playing' &&
+          request.resource.data.moves.size() == resource.data.moves.size() &&
+          request.resource.data.winner == null;
+      }
+
+      // Chỉ đọc được ván mình đang chơi, hoặc ván đang chờ ghép (để vào phòng /
+      // ghép ngẫu nhiên). Không cho đọc ván đang chơi / đã xong của người khác.
+      allow get: if signedIn() &&
+        (isParticipant() || resource.data.status == 'waiting');
+      allow list: if signedIn() && resource.data.status == 'waiting';
+
+      // Người tạo ván phải là chính mình.
+      allow create: if signedIn() &&
+        request.resource.data.hostUid == request.auth.uid;
+
+      allow update: if signedIn() && coreUnchanged() && (
+        isJoin() ||
+        (isParticipant() && isValidMove()) ||
+        isNonMoveUpdate()
+      );
+    }
+  }
+}
