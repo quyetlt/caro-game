@@ -21,6 +21,8 @@ class AuthService {
   FirebaseFirestore get _db => FirebaseFirestore.instance;
   CollectionReference<Map<String, dynamic>> get _users =>
       _db.collection('users');
+  CollectionReference<Map<String, dynamic>> get _friendCodes =>
+      _db.collection('friendCodes');
 
   static const _kNameKey = 'display_name';
 
@@ -53,6 +55,12 @@ class AuthService {
       'friendCode': friendCode,
       'online': true,
       'lastSeen': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+
+    // Bảng tra cứu công khai để kết bạn bằng mã (rules khóa đọc /users).
+    await _friendCodes.doc(friendCode).set({
+      'uid': uid,
+      'displayName': displayName,
     }, SetOptions(merge: true));
 
     _current = UserProfile(

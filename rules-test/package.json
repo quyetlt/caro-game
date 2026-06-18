@@ -1,0 +1,13 @@
+{
+  "name": "caro-rules-test",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "cp ../firestore.rules ./firestore.rules && firebase emulators:exec --only firestore --project demo-caro 'node test.mjs'"
+  },
+  "dependencies": {
+    "@firebase/rules-unit-testing": "^4.0.1",
+    "firebase": "^11.0.0"
+  }
+}

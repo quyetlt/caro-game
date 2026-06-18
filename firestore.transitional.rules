@@ -12,19 +12,13 @@ service cloud.firestore {
     }
 
     // Hồ sơ người dùng
+    //
+    // BẢN CHUYỂN TIẾP: tạm giữ quyền đọc /users mở (như rules cũ) để các bản
+    // app đã cài (v1.1.0 — query users theo friendCode) không bị hỏng kết bạn.
+    // Sau khi phát hành app dùng /friendCodes, deploy firestore.rules (strict)
+    // để khóa đọc về self+friends và tắt list.
     match /users/{uid} {
-      // uid này có coi người đang gọi là bạn không (kết bạn 2 chiều nên
-      // doc bạn-bè tồn tại ở cả hai phía).
-      function isFriend() {
-        return exists(
-          /databases/$(database)/documents/users/$(uid)/friends/$(request.auth.uid)
-        );
-      }
-
-      // Chỉ đọc được hồ sơ của chính mình hoặc của bạn bè. Không cho liệt kê
-      // (list) toàn bộ users — tra cứu để kết bạn dùng collection /friendCodes.
-      allow get: if signedIn() && (request.auth.uid == uid || isFriend());
-      allow list: if false;
+      allow read: if signedIn();
       allow create, update: if signedIn() && request.auth.uid == uid;
 
       // Bạn bè: chủ tài khoản đọc; người khác chỉ được ghi doc bạn-bè trỏ về
